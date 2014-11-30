@@ -36,6 +36,12 @@ function search_module(name)
 	return submod,path[#path],instance
 end
 
+function index(self,key)
+	local module,modulename,omod = search_module(self.__module)
+	assert(omod ~= nil)
+	return omod.instance[key]
+end
+
 function _LOAD(name,reload,...)
 	local module,modulename,omod = search_module(name)
 	local filename = modulename..".lua"
@@ -45,25 +51,24 @@ function _LOAD(name,reload,...)
 		setmetatable(nmod,{__index = _G})
 		local func,err = loadfile(filename,"bt",nmod)
 		assert(func ~= nil,string.format("error load module:%s",filename))
-		func(...)
-
-		module[modulename] = nmod
-		return nmod
+		module[modulename] = {env = nmod,instance = instance}
+		return setmetatable({__module = name},{__index = index})
 	else
 
 		if reload == false then
-			return omod
+			return setmetatable({__module = name},{__index = index})
 		else
-			--把原来模块的非local非function类型的变量保存起来
+			--把原来模块的非function类型非local的变量保存起来
 			local otable = {}
-			for k,v in pairs(omod) do
+			for k,v in pairs(omod.instance) do
 				if type(v) ~= "function" then
 					otable[k] = v
 				end
 			end
-
+			-- for k,v in pairs(omod) do print("@",k,v) end
+			--把原来模块的function类型引用到的upvalue保存起来
 			local ofunc = {}
-			for k,v in pairs(omod) do
+			for k,v in pairs(omod.instance) do
 				if type(v) == "function" then
 					local index = 1
 					local upvalue = {}
@@ -79,6 +84,7 @@ function _LOAD(name,reload,...)
 					end
 					ofunc[k] = {func = v,upvalue = upvalue}
 				end
+
 			end
 
 			local nmod  = {}
@@ -86,17 +92,19 @@ function _LOAD(name,reload,...)
 
 			local func,err = loadfile(filename,"bt",nmod)
 			assert(func ~= nil,string.format("error reload module:%s",filename))
-			func(...)
+			local instance = func(...)
 
-			--先把原来模块的中非local table转移到新模块中
+			module[modulename] = {env = nmod,instance = instance}
+
+			--把原来模块的中非local变量转移到新模块中
 			for k, v in pairs(otable) do
             	local mt = getmetatable(nmod[k])
             	if mt then setmetatable(v, mt) end
            	 	nmod[k] = v
             end
-
+            --把来的函数引用到的upvalue转移到新模块的同名函数的upvalue中
             for k,v in pairs(ofunc) do
-            	local nfunc = nmod[v]
+            	local nfunc = instance[k]
             	if nfunc ~= nil and type(nfunc) == "function" then
             		local index = 1
 					while true do
@@ -114,4 +122,5 @@ function _LOAD(name,reload,...)
             end
 		end
 	end
+	return setmetatable({__module = name},{__index = index})
 end
