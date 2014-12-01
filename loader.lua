@@ -1,4 +1,5 @@
 
+local global = require "common.Global"
 local _MODULES = {}
 
 function metaindex(self,key)
@@ -174,14 +175,6 @@ function _RELOAD(name,...)
 		end
 	end
 
-	-- global.dump_table(oetable)
-	-- print("~~~~~~~~~~~~")
-	-- global.dump_table(oefunc)
-	-- print("!!!!!!!!!!!!")
-	-- global.dump_table(oifunc)
-	-- print("@@@@@@@@@@@@")
-	-- global.dump_table(oitable)
-	-- print("############")
 	local nmod  = {}
 	setmetatable(nmod,{__index = _G})
 
@@ -253,8 +246,10 @@ function _RELOAD(name,...)
 						if type(value) == "function" then
 							join_uv(value,upvalue[name].func,upvalue[name].upvalue)
 						else
-							if upvalue[name] ~= nil then
-								debug.upvaluejoin(nfunc,index,oifunc[k].func,upvalue[name].index)
+							if value ~= instance then
+								if upvalue[name] ~= nil then
+									debug.upvaluejoin(nfunc,index,oifunc[k].func,upvalue[name].index)
+								end
 							end
 						end
 					end
@@ -265,6 +260,19 @@ function _RELOAD(name,...)
     end
 
     return setmetatable({__module = omod.path},{__index = metaindex}) 
+end
+
+function _INSTANCE(name)
+	local paths = parse_path(name)
+
+	local omod
+	for i = 1,#paths do 
+		if _MODULES[paths[i]] ~= nil then
+			omod = _MODULES[paths[i]]
+			break
+		end
+	end
+	return setmetatable({__module = omod.path},{__index = metaindex}) 
 end
 
 function _dump()
