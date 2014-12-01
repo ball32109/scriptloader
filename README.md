@@ -1,2 +1,1 @@
-reload lua script and save previous var
-============
+热更lua文件，不丢失原文件的数据
