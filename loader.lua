@@ -1,5 +1,4 @@
 
-local global = require "common.Global"
 local _MODULES = {}
 
 function metaindex(self,key)
