@@ -1,15 +1,14 @@
-
 local _MODULES = {}
 
-function metaindex(self,key)
+local function metaindex(self,key)
 	local module = _MODULES[self.__module]
 	assert(module ~= nil)
 	return module.instance[key]
 end
 
-local function parse_path(name)
-	local subpaths = {}
+local function search_path(name)
 	local path = package.path
+	local subpaths = {}
 	local start = 1
 	while true do
 		local over = path:find(";")
@@ -24,42 +23,41 @@ local function parse_path(name)
 	return subpaths
 end
 
-local function tryload(name,path,index)
+local function tryload(file,paths,index)
 	local module = {}
 	setmetatable(module,{__index = _G})
 
 	local pathnname
 	if index == nil then
-		for i = 1,#path do
-			local holename = path[i]
-
-			local func,err = loadfile(holename,"bt",module)
+		for i = 1,#paths do
+			local path = paths[i]
+			local func,err = loadfile(path,"bt",module)
 			if func ~= nil then
 				local instance = func()
-				_MODULES[holename] = {env = module,instance = instance,path = holename}
-				pathnname = holename
+				_MODULES[path] = {env = module,instance = instance,path = path}
+				pathnname = path
 				break
 			end
 		end
 	else
-		local holename = path[index]
-		local func,err = loadfile(holename,"bt",module)
+		local path = paths[index]
+		local func,err = loadfile(path,"bt",module)
 		if func ~= nil then
 			local instance = func()
-			_MODULES[holename] = {env = module,instance = instance,path = holename}
-			pathnname = holename
+			_MODULES[path] = {env = module,instance = instance,path = path}
+			pathnname = path
 		end
 	end
 
 	if not pathnname then
-		error(string.format("error load:%s",name))
+		error(string.format("error load:%s",file))
 	end
 
 	return setmetatable({__module = pathnname},{__index = metaindex})
 end
 
-function _LOAD(name,...)
-	local paths = parse_path(name)
+function loadscript(file,...)
+	local paths = search_path(file)
 
 	local omod
 	local index
@@ -72,7 +70,7 @@ function _LOAD(name,...)
 	end
 
 	if not omod then
-		return tryload(name,paths)
+		return tryload(file,paths)
 	else
 		return setmetatable({__module = omod.path},{__index = metaindex})
 	end
@@ -139,8 +137,8 @@ local function join_uv(nfunc,ofunc,upvalue)
 	end
 end
 
-function _RELOAD(name,...)
-	local paths = parse_path(name)
+function reloadscript(name,...)
+	local paths = search_path(name)
 
 	local omod
 	local index
@@ -259,23 +257,4 @@ function _RELOAD(name,...)
     end
 
     return setmetatable({__module = omod.path},{__index = metaindex}) 
-end
-
-function _INSTANCE(name)
-	local paths = parse_path(name)
-
-	local omod
-	for i = 1,#paths do 
-		if _MODULES[paths[i]] ~= nil then
-			omod = _MODULES[paths[i]]
-			break
-		end
-	end
-	return setmetatable({__module = omod.path},{__index = metaindex}) 
-end
-
-function _dump()
-	for k,v in pairs(_MODULES) do
-		print(k,v)
-	end
 end
